@@ -2,59 +2,55 @@ package handler
 
 import (
 	"brew-chatbot/gemini"
+	"brew-chatbot/internal/httputil"
 	"encoding/json"
 	"net/http"
 )
 
+// ChatHandler holds the dependencies our handler needs
 type ChatHandler struct {
 	Gemini *gemini.Client
 }
 
+// chatRequest is what we expect iOS to send us
 type chatRequest struct {
-	History []gemini.Message `json:"history"`
-	UserMessage string `json:"userMessage`
+	History     []gemini.Message `json:"history"`
+	UserMessage string           `json:"userMessage"`
 }
 
+// chatResponse is what we send back to iOS
 type chatResponse struct {
 	Reply string `json:"reply"`
 }
 
-type errorResponse struct {
-	Error string `json:"error"`
-}
-
+// Handle is the HTTP handler for POST /chat
 func (h *ChatHandler) Handle(w http.ResponseWriter, r *http.Request) {
+	// 1. Only allow POST requests
 	if r.Method != http.MethodPost {
-		writeError(w, "method not allowed", http.StatusMethodNotAllowed)
+		httputil.WriteError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
+	// 2. Decode the JSON body from iOS into our chatRequest struct
 	var req chatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, "invalid request body", http.StatusBadRequest)
-		return 
-	}
-
-	if req.UserMessage == "" {
-		writeError(w, "userMessage cannot be empty", http.StatusBadRequest)
-		return 
-	}
-
-	reply, err := h.Gemini.Chat(r.Context(), req.History, req.UserMessage)
-	if err != nil {
-		writeError(w, "failed to get response from AI", http.StatusInternalServerError)
+		httputil.WriteError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	writeJSON(w, chatResponse{Reply: reply}, http.StatusOK)
-}
+	// 3. Basic validation
+	if req.UserMessage == "" {
+		httputil.WriteError(w, "userMessage cannot be empty", http.StatusBadRequest)
+		return
+	}
 
-func writeJSON(w http.ResponseWriter, data any, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(data)
-}
+	// 4. Call Gemini
+	reply, err := h.Gemini.Chat(r.Context(), req.History, req.UserMessage)
+	if err != nil {
+		httputil.WriteError(w, "failed to get response from AI", http.StatusInternalServerError)
+		return
+	}
 
-func writeError(w http.ResponseWriter, message string, statusCode int) {
-	writeJSON(w, errorResponse{Error: message}, statusCode)
+	// 5. Send the response back to iOS as JSON
+	httputil.WriteJSON(w, chatResponse{Reply: reply}, http.StatusOK)
 }
