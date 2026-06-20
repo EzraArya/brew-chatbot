@@ -16,7 +16,7 @@ struct MessageBubble: View {
         HStack {
             if isUser { Spacer(minLength: 60) }
 
-            Text(message.content)
+            Text(markdownContent)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(bubbleBackground)
@@ -44,5 +44,22 @@ struct MessageBubble: View {
             bottomTrailingRadius: isUser ? 4 : 18,
             topTrailingRadius: 18
         )
+    }
+}
+
+extension MessageBubble {
+    // MARK: - Helpers
+    private var markdownContent: AttributedString {
+        let lines = message.content.components(separatedBy: "\n")
+    
+        var result = AttributedString()
+        for (index, line) in lines.enumerated() {
+            let parsed = (try? AttributedString(markdown: line)) ?? AttributedString(line)
+            result += parsed
+            if index < lines.count - 1 {
+                result += AttributedString("\n")
+            }
+        }
+        return result
     }
 }
