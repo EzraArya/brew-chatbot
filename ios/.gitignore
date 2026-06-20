@@ -1,0 +1,39 @@
+# ── Xcode ─────────────────────────────────────────────────────────────────────
+# Build output
+build/
+DerivedData/
+
+# User-specific Xcode settings (each developer has their own)
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+
+# Xcode Previews
+*.xcscmblueprint
+
+# ── Swift Package Manager ──────────────────────────────────────────────────────
+.build/
+*.resolved
+
+# Uncomment below if you are NOT committing your SPM resolved file
+# Package.resolved
+
+# ── CocoaPods (if used later) ──────────────────────────────────────────────────
+# Pods/
+# Podfile.lock
+
+# ── macOS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# ── IDE ────────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+
+# ── Secrets ────────────────────────────────────────────────────────────────────
+# Add any config files with secrets here
+# e.g. Secrets.swift, Config.plist
+*.env
