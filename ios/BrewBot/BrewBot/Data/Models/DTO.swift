@@ -7,17 +7,17 @@
 
 import Foundation
 
-struct MessageDTO: Codable {
+struct MessageDTO: Codable, Sendable {
     let role: String
     let content: String
 }
 
-struct ChatRequestDTO: Codable {
+struct ChatRequestDTO: Codable, Sendable {
     let history: [MessageDTO]
     let userMessage: String
 }
 
-struct ChatResponseDTO: Codable {
+struct ChatResponseDTO: Codable, Sendable {
     let reply: String
 }
 
