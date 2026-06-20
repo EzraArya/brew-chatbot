@@ -1,0 +1,22 @@
+# Binaries
+brew-chatbot
+*.exe
+*.out
+
+# Environment variables — NEVER commit your API keys
+.env
+.env.local
+.env.*.local
+
+# Go test cache
+*.test
+*.prof
+
+# Go build cache (auto-generated)
+/vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
