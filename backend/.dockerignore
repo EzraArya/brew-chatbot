@@ -1,0 +1,16 @@
+# Don't copy the compiled binary (Docker will build its own)
+brew-chatbot
+
+# Don't copy local env file — secrets are injected at runtime, never baked into the image
+.env
+
+# Don't copy git history
+.git
+.gitignore
+
+# Don't copy IDE files
+.idea/
+.vscode/
+
+# Don't copy this file itself
+.dockerignore
