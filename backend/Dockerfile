@@ -1,6 +1,9 @@
 # ── Stage 1: Builder ──────────────────────────────────────────────────────────
-# Use the official Go image — it has the compiler and all Go tools
-FROM golang:1.24-alpine AS builder
+# golang:alpine always pulls the latest stable Go — avoids version mismatch with go.mod
+FROM golang:alpine AS builder
+
+# Allow Go to auto-select the right toolchain version if needed
+ENV GOTOOLCHAIN=auto
 
 # Set the working directory inside the container
 WORKDIR /app

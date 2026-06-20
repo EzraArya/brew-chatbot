@@ -13,10 +13,9 @@ type Config struct {
 }
 
 func Load() (Config, error) {
-	err := godotenv.Load()
-	if err != nil {
-		return  Config{}, fmt.Errorf("error loading .env file: %w", err)
-	}
+	// Load .env file if it exists — for local development
+	// In Docker/production, env vars are injected directly so this is safely ignored
+	godotenv.Load()
 
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
