@@ -172,11 +172,3 @@ Shared HTTP helpers live in `internal/httputil/` — Go's `internal/` convention
 | Variable | Required | Description |
 |---|---|---|
 | `GEMINI_API_KEY` | ✅ Yes | Your Google Gemini API key |
-
----
-
-## What's Next
-
-- iOS frontend (SwiftUI)
-- CI/CD pipeline
-- Deploy to cloud (Fly.io / GCP / AWS)

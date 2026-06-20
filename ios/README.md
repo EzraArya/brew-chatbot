@@ -174,13 +174,3 @@ SwiftUI's `Text` doesn't support block-level markdown (newlines, lists, code blo
 
 ### Explicit Dependency Injection
 `ChatViewModel` always receives a `ChatService` via `init` — no hidden defaults. This makes dependencies visible and easy to mock in tests.
-
----
-
-## What's Next
-
-- [ ] Persistent chat history (SwiftData)
-- [ ] Unit tests for `ChatViewModel`
-- [ ] Physical device support via environment-based base URL
-- [ ] Onboarding / welcome screen
-- [ ] Share conversation feature
