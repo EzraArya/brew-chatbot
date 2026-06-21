@@ -23,7 +23,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
-	fmt.Println("Config loaded! API key starts with:", cfg.GeminiAPIKey[:8]+"...")
+	fmt.Println("Config loaded successfully!")
 
 	// 2. Create Gemini client
 	geminiClient, err := gemini.NewClient(cfg.GeminiAPIKey)
