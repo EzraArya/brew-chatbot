@@ -89,9 +89,16 @@ final class ChatViewModel {
                 userMessage: trimmed
             )
 
-            try await consumeAndAnimateStream(stream)
-
-            let finalMessage = Message(role: .model, content: streamingContent)
+            let (toolType, toolPayload) = try await TypewriterStreamer.animate(stream: stream) { char in
+                self.streamingContent.append(char)
+            }
+            
+            let finalMessage = Message(
+                role: .model, 
+                content: streamingContent,
+                toolType: toolType,
+                toolPayload: toolPayload
+            )
             conversation.messages.append(finalMessage)
         } catch {
             conversation.messages.removeLast()
@@ -114,47 +121,5 @@ final class ChatViewModel {
         guard conversation.messages.count == 1 else { return }
         let words = text.split(separator: " ").prefix(5).joined(separator: " ")
         conversation.title = words.isEmpty ? "New Conversation" : words
-    }
-
-    private func consumeAndAnimateStream(_ stream: AsyncThrowingStream<String, Error>) async throws {
-        var charBuffer: [Character] = []
-        var isNetworkFinished = false
-        var networkError: Error?
-        
-        let producer = Task {
-            do {
-                for try await chunk in stream {
-                    charBuffer.append(contentsOf: chunk)
-                }
-            } catch {
-                networkError = error
-            }
-            isNetworkFinished = true
-        }
-        
-        var currentIndex = 0
-        
-        while !isNetworkFinished || currentIndex < charBuffer.count {            
-            if let error = networkError {
-                throw error
-            }
-            
-            let unreadCount = charBuffer.count - currentIndex
-            
-            if unreadCount > 0 {
-                let char = charBuffer[currentIndex]
-                streamingContent.append(char)
-                currentIndex += 1
-
-                let delayNanoseconds: UInt64 = unreadCount > 30 ? 8_000_000 : 15_000_000
-                
-                try? await Task.sleep(nanoseconds: delayNanoseconds)
-                
-            } else {
-                try? await Task.sleep(nanoseconds: 10_000_000)
-            }
-        }
-        
-        producer.cancel()
     }
 }
