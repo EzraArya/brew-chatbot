@@ -17,6 +17,9 @@ final class ChatViewModel {
     var isLoading: Bool = false
     var errorMessage: String? = nil
 
+    var isStreaming: Bool = false
+    var streamingContent: String = ""
+
     /// Convenience — Views read messages from here directly
     var messages: [Message] { conversation.messages }
 
@@ -65,6 +68,41 @@ final class ChatViewModel {
         save()
 
         isLoading = false
+    }
+
+    func streamMessage(_ text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, !isLoading, !isStreaming else { return }
+
+        let userMessage = Message(role: .user, content: trimmed)
+        conversation.messages.append(userMessage)
+
+        generateTitleIfNeeded(from: trimmed)
+
+        isStreaming = true
+        streamingContent = ""
+        errorMessage = nil
+
+        do {
+            let stream = service.streamMessage(
+                history: conversation.messages.dropLast().map { $0 }, 
+                userMessage: trimmed
+            )
+
+            for try await chunk in stream {
+                streamingContent += chunk
+            }
+
+            let finalMessage = Message(role: .model, content: streamingContent)
+            conversation.messages.append(finalMessage)
+        } catch {
+            conversation.messages.removeLast()
+            errorMessage = error.localizedDescription
+        }
+
+        isStreaming = false
+        streamingContent = ""
+        save()
     }
 
     // MARK: - Private Helpers
