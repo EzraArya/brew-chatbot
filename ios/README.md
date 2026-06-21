@@ -106,12 +106,16 @@ Includes mapping extensions to convert between DTOs and domain `Message`.
 
 The iOS app maintains conversation history locally and sends it with every request — the backend is stateless.
 
-### `MessageBubble.swift` — UI Component
+### `MessageBubble.swift` & Widgets — UI Components
 Renders a single chat bubble with:
 - User messages right-aligned in accent color
 - Bot messages left-aligned in secondary background
-- `UnevenRoundedRectangle` for the chat "tail" effect
 - Full Markdown rendering via `AttributedString` (line-by-line to preserve newlines)
+
+If the backend sends a Tool Call (e.g. `[generate_brew_recipe]`), the `WidgetFactory` decodes it and the `WidgetRenderer` dynamically inserts a beautiful, interactive SwiftUI card (like `ManualBrewRecipeCardView`) directly into the chat stream, completely bypassing the text bubble.
+
+### `TypewriterStreamer.swift` — Reusable Utility
+A decoupled concurrency utility that acts as an async iterator. It drains Server-Sent Event streams instantly to avoid network timeouts, but yields characters back to the UI on a paced 15ms delay to create a smooth typewriter effect. It also intercepts Tool Calls to bypass the animation entirely.
 
 ### `InputBar.swift` — UI Component
 Text input + send button with:
@@ -174,3 +178,6 @@ SwiftUI's `Text` doesn't support block-level markdown (newlines, lists, code blo
 
 ### Explicit Dependency Injection
 `ChatViewModel` always receives a `ChatService` via `init` — no hidden defaults. This makes dependencies visible and easy to mock in tests.
+
+### Server-Driven Generative UI
+Instead of hardcoding every possible UI state, we use Gemini Function Calling. The Go backend streams down structured JSON inside a `[tool_name]` wrapper. The iOS app intercepts this in the networking layer, decodes it into a type-safe Swift struct using `WidgetFactory`, and `WidgetRenderer` draws a beautiful native SwiftUI card. This allows the AI to dynamically spawn interactive widgets directly in the chat!
