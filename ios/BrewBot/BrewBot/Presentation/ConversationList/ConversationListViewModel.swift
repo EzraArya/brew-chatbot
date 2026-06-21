@@ -12,7 +12,7 @@ import SwiftUI
 @MainActor
 final class ConversationListViewModel {
     var conversations: [Conversation] = []
-    private let repository: ChatRepositoryProtocol
+    let repository: ChatRepositoryProtocol
 
     init(repository: ChatRepositoryProtocol) {
         self.repository = repository
