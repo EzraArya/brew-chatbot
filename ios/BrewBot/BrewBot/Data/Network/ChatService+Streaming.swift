@@ -11,7 +11,7 @@ extension ChatService {
     func streamMessage(
         history: [Message],
         userMessage: String
-    ) -> AsyncThrowingStream<String, Error> {
+    ) -> AsyncThrowingStream<StreamEvent, Error> {
         return AsyncThrowingStream { continuation in 
             Task {
                 do {
@@ -50,8 +50,17 @@ extension ChatService {
                                 return
                             }
 
+                            if chunk.hasPrefix("["), let bracketEnd = chunk.firstIndex(of: "]") {
+                                let toolNameRaw = String(chunk[chunk.index(after: chunk.startIndex)..<bracketEnd])
+                                if let toolType = ToolType(rawValue: toolNameRaw) {
+                                    let payloadRaw = String(chunk[chunk.index(bracketEnd, offsetBy: 2)...])
+                                    continuation.yield(.toolCall(type: toolType, payload: payloadRaw))
+                                    continue
+                                }
+                            }
+
                             let cleanChunk = chunk.replacingOccurrences(of: "\\n", with: "\n")
-                            continuation.yield(cleanChunk)
+                            continuation.yield(.textChunk(cleanChunk))
                         }
                     }
 

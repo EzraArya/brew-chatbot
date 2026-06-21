@@ -165,6 +165,9 @@ The builder stage compiles the Go binary; the runner stage contains only the bin
 ### Internal Package
 Shared HTTP helpers live in `internal/httputil/` — Go's `internal/` convention prevents these from being imported by code outside this module.
 
+### Tool Calling & Generative UI
+Instead of executing backend commands (like database queries), we use Gemini Function Calling to generate structured UI state. `gemini/tools.go` defines strict JSON schemas for custom UI cards (e.g. `generate_brew_recipe`). When `client_stream.go` intercepts a tool call, it serializes it and streams it down via Server-Sent Events (e.g., `data: [generate_brew_recipe] {"method": "V60"...}`) so the iOS app can dynamically render the card.
+
 ---
 
 ## Environment Variables

@@ -2,7 +2,7 @@
 
 An AI-powered brewing assistant chatbot. Ask it anything about beer, coffee, tea, or kombucha brewing — recipes, techniques, ingredients, troubleshooting, and equipment.
 
-Built with a Go backend, Google Gemini API, and a native iOS SwiftUI app.
+Built with a Go backend, Google Gemini API, and a native iOS SwiftUI app. Features **Server-Driven Generative UI**: instead of just returning text, the backend streams strict JSON tool calls that the iOS app decodes into interactive, native SwiftUI widgets (like step-by-step recipe cards)!
 
 ---
 

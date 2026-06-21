@@ -12,12 +12,16 @@ struct Message: Identifiable, Equatable, Sendable, Codable, Hashable {
     let role: Role 
     let content: String
     let timestamp: Date
+    var toolType: ToolType?
+    var toolPayload: String?
 
-    init(role: Role, content: String) {
+    init(role: Role, content: String, toolType: ToolType? = nil, toolPayload: String? = nil) {
         self.id = UUID()
         self.role = role
         self.content = content
         self.timestamp = Date()
+        self.toolType = toolType
+        self.toolPayload = toolPayload
     }
 }
 

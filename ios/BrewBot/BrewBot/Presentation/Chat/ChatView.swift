@@ -26,8 +26,16 @@ struct ChatView: View {
                     ScrollView {
                         LazyVStack(spacing: 8) {
                             ForEach(viewModel.messages) { message in
-                                MessageBubble(message: message)
-                                    .id(message.id)
+                                if let type = message.toolType, let payload = message.toolPayload {
+                                    
+                                    WidgetRenderer(model: WidgetFactory.decode(type: type, payload: payload))
+                                        .id(message.id)
+                                        .padding(.vertical, 4)
+                                        
+                                } else {
+                                    MessageBubble(message: message)
+                                        .id(message.id)
+                                }
                             }
 
                             if viewModel.isStreaming {
@@ -43,6 +51,9 @@ struct ChatView: View {
                         .padding()
                     }
                     .onChange(of: viewModel.messages.count) {
+                        scrollToBottom(proxy: proxy)
+                    }
+                    .onAppear {
                         scrollToBottom(proxy: proxy)
                     }
                     .onChange(of: viewModel.isLoading) {
