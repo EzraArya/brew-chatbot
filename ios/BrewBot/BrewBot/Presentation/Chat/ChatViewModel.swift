@@ -5,42 +5,78 @@
 //  Created by Ezra Arya Wijaya on 21/06/26.
 //
 
-import Foundation 
+import Foundation
 
 @Observable
 @MainActor
 final class ChatViewModel {
-    var messages: [Message] = []
+
+    // MARK: - State
+
+    private(set) var conversation: Conversation
     var isLoading: Bool = false
     var errorMessage: String? = nil
-    
+
+    /// Convenience — Views read messages from here directly
+    var messages: [Message] { conversation.messages }
+
+    // MARK: - Dependencies
+
     private let service: ChatService
-    
-    init(service: ChatService) {
+    private let repository: ChatRepositoryProtocol
+
+    init(
+        conversation: Conversation,
+        service: ChatService,
+        repository: ChatRepositoryProtocol
+    ) {
+        self.conversation = conversation
         self.service = service
+        self.repository = repository
     }
 
-    func sendMessage(_ message: String) async {
-        let trimmed = message.trimmingCharacters(in: .whitespaces)
+    // MARK: - Actions
+
+    func sendMessage(_ text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, !isLoading else { return }
 
         let userMessage = Message(role: .user, content: trimmed)
-        messages.append(userMessage)
-        
+        conversation.messages.append(userMessage)
+
+        generateTitleIfNeeded(from: trimmed)
+
         isLoading = true
         errorMessage = nil
 
         do {
             let reply = try await service.sendMessage(
-                history: messages.dropLast().map {$0}, 
+                history: conversation.messages.dropLast().map { $0 },
                 userMessage: trimmed
             )
-            messages.append(reply)
+
+            conversation.messages.append(reply)
+
         } catch {
-            messages.removeLast()
-            errorMessage = error.localizedDescription
+            conversation.messages.removeLast()
+            errorMessage = "Couldn't reach BrewBot. Please try again."
         }
 
+        save()
+
         isLoading = false
+    }
+
+    // MARK: - Private Helpers
+
+    private func save() {
+        conversation.updatedAt = Date()
+        repository.saveConversation(conversation)
+    }
+
+    private func generateTitleIfNeeded(from text: String) {
+        guard conversation.messages.count == 1 else { return }
+        let words = text.split(separator: " ").prefix(5).joined(separator: " ")
+        conversation.title = words.isEmpty ? "New Conversation" : words
     }
 }
