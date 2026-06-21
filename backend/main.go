@@ -50,7 +50,7 @@ func setupRoutes(geminiClient *gemini.Client) *http.ServeMux {
 
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/chat", chatHandler.Handle)
-	mux.HandleFunc("POST /chat/stream", chatStreamHandler.ServerHTTP)
+	mux.HandleFunc("POST /chat/stream", chatStreamHandler.ServeHTTP)
 
 	return mux
 }

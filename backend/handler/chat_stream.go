@@ -14,21 +14,21 @@ type ChatStreamHandler struct {
 	Client *gemini.Client
 }
 
-func (h *ChatStreamHandler) ServerHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *ChatStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		httputil.WriteError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		httputil.WriteError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		httputil.WriteError(w, "Streaming unsupported", http.StatusInternalServerError)
+		httputil.WriteError(w, "streaming unsupported", http.StatusInternalServerError)
 		return
 	}
 
 	var req chatRequest
-	if err := json.NewDecoder(r.Body).Decode(*&req); err != nil {
-		httputil.WriteError(w, "Invalid request body", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.WriteError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -42,7 +42,7 @@ func (h *ChatStreamHandler) ServerHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 
 	err := h.Client.ChatStream(r.Context(), req.History, req.UserMessage, func(chunk string) {
-		cleanChunk := strings.ReplaceAll(chunk, "\n", "\\n")
+		cleanChunk := strings.ReplaceAll(chunk, "\n", "\\n")		
 		fmt.Fprintf(w, "data: %s\n\n", cleanChunk)
 		flusher.Flush()
 	})
