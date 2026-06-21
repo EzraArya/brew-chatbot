@@ -8,17 +8,20 @@
 import SwiftUI
 
 struct ChatView: View {
-    @State private var viewModel = ChatViewModel(
-        conversation: Conversation(),
-        service: ChatService(),
-        repository: UserDefaultsChatRepository()
-    )
+    private let conversation: Conversation
+    private let repository: ChatRepositoryProtocol
+    
+    init(conversation: Conversation, repository: ChatRepositoryProtocol) {
+        self.conversation = conversation
+        self.repository = repository
+    }
+    
+    @State private var viewModel: ChatViewModel?
     @State private var inputText = ""
-
+    
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Message list
+        VStack(spacing: 0) {
+            if let viewModel {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 8) {
@@ -27,7 +30,6 @@ struct ChatView: View {
                                     .id(message.id)
                             }
 
-                            // Typing indicator
                             if viewModel.isLoading {
                                 TypingIndicator()
                                     .id("typing")
@@ -45,24 +47,34 @@ struct ChatView: View {
 
                 Divider()
 
-                // Input bar
                 InputBar(
                     text: $inputText,
                     isLoading: viewModel.isLoading
                 ) {
                     sendMessage()
                 }
+            } else {
+                ProgressView()
             }
-            .navigationTitle("BrewBot 🍺")
-            .navigationBarTitleDisplayMode(.inline)
-            .alert("Something went wrong",
-                   isPresented: Binding(
-                    get: { viewModel.errorMessage != nil },
-                    set: { if !$0 { viewModel.errorMessage = nil } }
-                   )) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(viewModel.errorMessage ?? "")
+        }
+        .navigationTitle(viewModel?.conversation.title ?? "BrewBot 🍺")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("Something went wrong",
+               isPresented: Binding(
+                get: { viewModel?.errorMessage != nil },
+                set: { if !$0 { viewModel?.errorMessage = nil } }
+               )) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(viewModel?.errorMessage ?? "")
+        }
+        .task {
+            if viewModel == nil {
+                viewModel = ChatViewModel(
+                    conversation: conversation,
+                    service: ChatService(),
+                    repository: repository
+                )
             }
         }
     }
@@ -70,14 +82,16 @@ struct ChatView: View {
     // MARK: - Actions
 
     private func sendMessage() {
+        guard let viewModel else { return }
         let text = inputText
-        inputText = ""   // clear immediately for good UX
+        inputText = ""
         Task {
             await viewModel.sendMessage(text)
         }
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
+        guard let viewModel else { return }
         withAnimation(.easeOut(duration: 0.3)) {
             if viewModel.isLoading {
                 proxy.scrollTo("typing", anchor: .bottom)
