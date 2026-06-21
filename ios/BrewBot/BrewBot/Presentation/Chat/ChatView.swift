@@ -8,7 +8,11 @@
 import SwiftUI
 
 struct ChatView: View {
-    @State private var viewModel = ChatViewModel(service: ChatService())
+    @State private var viewModel = ChatViewModel(
+        conversation: Conversation(),
+        service: ChatService(),
+        repository: UserDefaultsChatRepository()
+    )
     @State private var inputText = ""
 
     var body: some View {
