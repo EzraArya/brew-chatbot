@@ -100,13 +100,16 @@ struct ChatView: View {
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
         guard let viewModel else { return }
-        withAnimation(.easeOut(duration: 0.3)) {
-            if viewModel.isLoading {
-                proxy.scrollTo("typing", anchor: .bottom)
-            } else if viewModel.isStreaming {
-                proxy.scrollTo("streaming", anchor: .bottom)
-            } else if let last = viewModel.messages.last {
-                proxy.scrollTo(last.id, anchor: .bottom)
+        
+        if viewModel.isStreaming {
+            proxy.scrollTo("streaming", anchor: .bottom)
+        } else {
+            withAnimation(.easeOut(duration: 0.3)) {
+                if viewModel.isLoading {
+                    proxy.scrollTo("typing", anchor: .bottom)
+                } else if let last = viewModel.messages.last {
+                    proxy.scrollTo(last.id, anchor: .bottom)
+                }
             }
         }
     }
