@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Message: Identifiable, Equatable, Sendable {
+struct Message: Identifiable, Equatable, Sendable, Codable {
     let id: UUID 
     let role: Role 
     let content: String
@@ -22,15 +22,8 @@ struct Message: Identifiable, Equatable, Sendable {
 }
 
 extension Message {
-    enum Role {
-        case user
-        case model
-
-        var rawValue: String {
-            switch self {
-                case .user: return "user"
-                case .model: return "model"
-            }
-        }
+    enum Role: String, Codable, Sendable {
+        case user = "user"
+        case model = "model"
     }
 }
