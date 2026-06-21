@@ -21,6 +21,12 @@ struct InputBar: View {
                 .padding(.vertical, 10)
                 .background(Color(.secondarySystemBackground), in: Capsule())
                 .disabled(isLoading)
+                .submitLabel(.send)
+                .onSubmit {
+                    if canSend {
+                        onSend()
+                    }
+                }
 
             // Send button
             Button(action: onSend) {

@@ -30,6 +30,11 @@ struct ChatView: View {
                                     .id(message.id)
                             }
 
+                            if viewModel.isStreaming {
+                                StreamingBubble(content: viewModel.streamingContent)
+                                    .id("streaming")
+                            }
+
                             if viewModel.isLoading {
                                 TypingIndicator()
                                     .id("typing")
@@ -43,13 +48,16 @@ struct ChatView: View {
                     .onChange(of: viewModel.isLoading) {
                         scrollToBottom(proxy: proxy)
                     }
+                    .onChange(of: viewModel.streamingContent.count) {
+                        scrollToBottom(proxy: proxy)
+                    }
                 }
 
                 Divider()
 
                 InputBar(
                     text: $inputText,
-                    isLoading: viewModel.isLoading
+                    isLoading: viewModel.isLoading || viewModel.isStreaming
                 ) {
                     sendMessage()
                 }
@@ -86,17 +94,22 @@ struct ChatView: View {
         let text = inputText
         inputText = ""
         Task {
-            await viewModel.sendMessage(text)
+            await viewModel.streamMessage(text)
         }
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
         guard let viewModel else { return }
-        withAnimation(.easeOut(duration: 0.3)) {
-            if viewModel.isLoading {
-                proxy.scrollTo("typing", anchor: .bottom)
-            } else if let last = viewModel.messages.last {
-                proxy.scrollTo(last.id, anchor: .bottom)
+        
+        if viewModel.isStreaming {
+            proxy.scrollTo("streaming", anchor: .bottom)
+        } else {
+            withAnimation(.easeOut(duration: 0.3)) {
+                if viewModel.isLoading {
+                    proxy.scrollTo("typing", anchor: .bottom)
+                } else if let last = viewModel.messages.last {
+                    proxy.scrollTo(last.id, anchor: .bottom)
+                }
             }
         }
     }

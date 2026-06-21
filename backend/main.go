@@ -46,9 +46,11 @@ func setupRoutes(geminiClient *gemini.Client) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	chatHandler := &handler.ChatHandler{Gemini: geminiClient}
+	chatStreamHandler := &handler.ChatStreamHandler{Client: geminiClient}
 
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/chat", chatHandler.Handle)
+	mux.HandleFunc("POST /chat/stream", chatStreamHandler.ServeHTTP)
 
 	return mux
 }

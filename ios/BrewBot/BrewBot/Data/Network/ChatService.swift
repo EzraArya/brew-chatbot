@@ -9,7 +9,7 @@ import Foundation
 
 @MainActor
 final class ChatService {
-    private let baseURL: String 
+    let baseURL: String 
 
     init(baseURL: String = "http://localhost:8080") {
         self.baseURL = baseURL
