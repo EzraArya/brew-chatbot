@@ -5,6 +5,7 @@ import (
 	"brew-chatbot/gemini"
 	"brew-chatbot/handler"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 )
@@ -18,26 +19,27 @@ func main() {
 }
 
 func run() error {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	// 1. Load config
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
-	fmt.Println("Config loaded successfully!")
+	slog.Info("Config loaded successfully!")
 
 	// 2. Create Gemini client
 	geminiClient, err := gemini.NewClient(cfg.GeminiAPIKey)
 	if err != nil {
 		return fmt.Errorf("creating Gemini client: %w", err)
 	}
-	fmt.Println("Gemini client ready!")
+	slog.Info("Gemini client ready!")
 
 	// 3. Register routes
 	mux := setupRoutes(geminiClient)
 
 	// 4. Start the server
 	addr := ":" + cfg.Port
-	fmt.Println("Server running on http://localhost" + addr)
+	slog.Info("Server running on http://localhost" + addr)
 	return http.ListenAndServe(addr, mux)
 }
 
