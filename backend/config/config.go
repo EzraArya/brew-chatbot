@@ -22,8 +22,13 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("GEMINI_API_KEY is not set in .env")
 	}
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
 	return Config{
 		GeminiAPIKey: apiKey,
-		Port: "8080",
+		Port: port,
 	}, nil
 }
