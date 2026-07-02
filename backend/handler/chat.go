@@ -3,8 +3,12 @@ package handler
 import (
 	"brew-chatbot/gemini"
 	"brew-chatbot/internal/httputil"
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"strings"
+	"time"
 )
 
 // ChatHandler holds the dependencies our handler needs
@@ -39,15 +43,19 @@ func (h *ChatHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. Basic validation
-	if req.UserMessage == "" {
+	if strings.TrimSpace(req.UserMessage) == "" {
 		httputil.WriteError(w, "userMessage cannot be empty", http.StatusBadRequest)
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	
 	// 4. Call Gemini
-	reply, err := h.Gemini.Chat(r.Context(), req.History, req.UserMessage)
+	reply, err := h.Gemini.Chat(ctx, req.History, req.UserMessage)
 	if err != nil {
 		httputil.WriteError(w, "failed to get response from AI", http.StatusInternalServerError)
+		slog.Error("Gemini chat failed", "error", err)
 		return
 	}
 
