@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"google.golang.org/genai"
 )
@@ -42,6 +43,7 @@ func (c *Client) ChatStream(
 
 			jsonBytes, err := json.Marshal(call.Args)
 			if err == nil {
+				slog.Info("gemini executed tool", "tool", call.Name, "args", string(jsonBytes))
 				onChunk(fmt.Sprintf("[%s] %s", call.Name, string(jsonBytes)))
 			}
 
@@ -51,6 +53,7 @@ func (c *Client) ChatStream(
         if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
         	chunkText := resp.Candidates[0].Content.Parts[0].Text
          	if chunkText != "" {
+          		slog.Debug("gemini generated text", "length", len(chunkText))
          		onChunk(chunkText)
          	}
         }
