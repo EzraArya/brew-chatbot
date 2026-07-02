@@ -4,6 +4,7 @@ import (
 	"brew-chatbot/config"
 	"brew-chatbot/gemini"
 	"brew-chatbot/handler"
+	"brew-chatbot/internal/middleware"
 	"context"
 	"fmt"
 	"log/slog"
@@ -38,7 +39,8 @@ func run() error {
     slog.Info("Gemini client ready!")
 
     mux := setupRoutes(geminiClient)
-    return startServer(cfg.Port, mux)
+    handler := middleware.Logging(middleware.BodyLimit(1<<20)(mux))
+    return startServer(cfg.Port, handler)
 }
 
 func startServer(port string, handler http.Handler) error {
