@@ -4,21 +4,22 @@ import (
 	"brew-chatbot/config"
 	"brew-chatbot/gemini"
 	"brew-chatbot/handler"
-	"brew-chatbot/internal/middleware"
 	"brew-chatbot/internal/db"
+	"brew-chatbot/internal/middleware"
 	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -93,10 +94,16 @@ func setupRoutes(geminiClient *gemini.Client, queries *db.Queries) *http.ServeMu
 
 	chatHandler := &handler.ChatHandler{Gemini: geminiClient}
 	chatStreamHandler := &handler.ChatStreamHandler{Client: geminiClient}
+	sessionHandler := &handler.SessionHandler{Queries: queries}
 
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/chat", chatHandler.Handle)
 	mux.HandleFunc("POST /chat/stream", chatStreamHandler.ServeHTTP)
+
+	mux.Handle("POST /sessions", middleware.DeviceID(http.HandlerFunc(sessionHandler.Create)))
+	mux.Handle("GET /sessions", middleware.DeviceID(http.HandlerFunc(sessionHandler.List)))
+	mux.Handle("GET /sessions/{id}", middleware.DeviceID(http.HandlerFunc(sessionHandler.Get)))
+	mux.Handle("DELETE /sessions/{id}", middleware.DeviceID(http.HandlerFunc(sessionHandler.Delete)))
 
 	return mux
 }
@@ -115,7 +122,8 @@ func initDB(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
     slog.Info("Database connected")
 
     // 2. Run migrations
-    m, err := migrate.New("file://db/migrations", databaseURL)
+    migrateURL := strings.Replace(databaseURL, "postgresql://", "pgx5://", 1)
+    m, err := migrate.New("file://db/migrations", migrateURL)
     if err != nil {
         pool.Close() // clean up the pool before returning
         return nil, fmt.Errorf("creating migrator: %w", err)
