@@ -90,22 +90,27 @@ func startServer(port string, handler http.Handler) error {
 
 // setupRoutes wires all handlers to their routes and returns the mux
 func setupRoutes(geminiClient *gemini.Client, queries *db.Queries) *http.ServeMux {
-	mux := http.NewServeMux()
+    mux := http.NewServeMux()
 
-	chatHandler := &handler.ChatHandler{Gemini: geminiClient}
-	chatStreamHandler := &handler.ChatStreamHandler{Client: geminiClient}
-	sessionHandler := &handler.SessionHandler{Queries: queries}
+    // Handlers
+    chatHandler := &handler.ChatHandler{Gemini: geminiClient, Queries: queries}
+    chatStreamHandler := &handler.ChatStreamHandler{Client: geminiClient, Queries: queries}
+    sessionHandler := &handler.SessionHandler{Queries: queries}
 
-	mux.HandleFunc("/health", healthHandler)
-	mux.HandleFunc("/chat", chatHandler.Handle)
-	mux.HandleFunc("POST /chat/stream", chatStreamHandler.ServeHTTP)
+    // Public routes
+    mux.HandleFunc("/health", healthHandler)
 
-	mux.Handle("POST /sessions", middleware.DeviceID(http.HandlerFunc(sessionHandler.Create)))
-	mux.Handle("GET /sessions", middleware.DeviceID(http.HandlerFunc(sessionHandler.List)))
-	mux.Handle("GET /sessions/{id}", middleware.DeviceID(http.HandlerFunc(sessionHandler.Get)))
-	mux.Handle("DELETE /sessions/{id}", middleware.DeviceID(http.HandlerFunc(sessionHandler.Delete)))
+    // Session routes — protected by DeviceID middleware
+    mux.Handle("POST /sessions", middleware.DeviceID(http.HandlerFunc(sessionHandler.Create)))
+    mux.Handle("GET /sessions", middleware.DeviceID(http.HandlerFunc(sessionHandler.List)))
+    mux.Handle("GET /sessions/{id}", middleware.DeviceID(http.HandlerFunc(sessionHandler.Get)))
+    mux.Handle("DELETE /sessions/{id}", middleware.DeviceID(http.HandlerFunc(sessionHandler.Delete)))
 
-	return mux
+    // Chat routes — session-scoped, also protected
+    mux.Handle("POST /sessions/{id}/chat", middleware.DeviceID(http.HandlerFunc(chatHandler.Handle)))
+    mux.Handle("POST /sessions/{id}/chat/stream", middleware.DeviceID(http.HandlerFunc(chatStreamHandler.ServeHTTP)))
+
+    return mux
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
