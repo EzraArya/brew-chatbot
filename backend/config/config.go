@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	GeminiAPIKey string
+	DatabaseURL string
 	Port string
 }
 
@@ -27,8 +28,14 @@ func Load() (Config, error) {
 		port = "8080"
 	}
 
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		return Config{}, fmt.Errorf("DATABASE_URL is not set in .env")
+	}
+
 	return Config{
 		GeminiAPIKey: apiKey,
+		DatabaseURL: dbURL,
 		Port: port,
 	}, nil
 }
