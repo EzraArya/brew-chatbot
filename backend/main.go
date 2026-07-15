@@ -95,7 +95,7 @@ func setupRoutes(geminiClient *gemini.Client, queries *db.Queries) *http.ServeMu
     // Handlers
     chatHandler := &handler.ChatHandler{Gemini: geminiClient, Queries: queries}
     chatStreamHandler := &handler.ChatStreamHandler{Client: geminiClient, Queries: queries}
-    sessionHandler := &handler.SessionHandler{Queries: queries}
+    sessionHandler := &handler.SessionHandler{Queries: queries, Gemini: geminiClient}
 
     // Public routes
     mux.HandleFunc("/health", healthHandler)
@@ -110,6 +110,10 @@ func setupRoutes(geminiClient *gemini.Client, queries *db.Queries) *http.ServeMu
     mux.Handle("POST /sessions/{id}/chat", middleware.DeviceID(http.HandlerFunc(chatHandler.Handle)))
     mux.Handle("POST /sessions/{id}/chat/stream", middleware.DeviceID(http.HandlerFunc(chatStreamHandler.ServeHTTP)))
 
+
+    // Generate title
+    mux.Handle("POST /sessions/{id}/title", middleware.DeviceID(http.HandlerFunc(sessionHandler.GenerateTitle)))
+    
     return mux
 }
 
