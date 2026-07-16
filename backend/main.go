@@ -93,7 +93,6 @@ func setupRoutes(geminiClient *gemini.Client, queries *db.Queries) *http.ServeMu
     mux := http.NewServeMux()
 
     // Handlers
-    chatHandler := &handler.ChatHandler{Gemini: geminiClient, Queries: queries}
     chatStreamHandler := &handler.ChatStreamHandler{Client: geminiClient, Queries: queries}
     sessionHandler := &handler.SessionHandler{Queries: queries, Gemini: geminiClient}
 
@@ -107,7 +106,6 @@ func setupRoutes(geminiClient *gemini.Client, queries *db.Queries) *http.ServeMu
     mux.Handle("DELETE /sessions/{id}", middleware.DeviceID(http.HandlerFunc(sessionHandler.Delete)))
 
     // Chat routes — session-scoped, also protected
-    mux.Handle("POST /sessions/{id}/chat", middleware.DeviceID(http.HandlerFunc(chatHandler.Handle)))
     mux.Handle("POST /sessions/{id}/chat/stream", middleware.DeviceID(http.HandlerFunc(chatStreamHandler.ServeHTTP)))
 
 
