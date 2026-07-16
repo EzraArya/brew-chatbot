@@ -12,6 +12,7 @@ func GetToolConfig() *genai.GenerateContentConfig {
 		Tools: []*genai.Tool{
 			{
 				FunctionDeclarations: []*genai.FunctionDeclaration{
+					buildSearchKnowledgeTool(),
 					buildBrewRecipeTool(),
 					buildBeerRecipeTool(),
 					buildTeaRecipeTool(),
@@ -260,6 +261,27 @@ func buildBrewTimerTool() *genai.FunctionDeclaration {
 			},
 			Required:         []string{"title", "method", "total_duration_seconds", "steps"},
 			PropertyOrdering: []string{"title", "method", "total_duration_seconds", "steps"},
+		},
+	}
+}
+
+// buildSearchKnowledgeTool allows Gemini to actively pull brewing knowledge
+// from the knowledge base. Gemini calls this when it needs precise parameters,
+// ratios, or techniques. The backend intercepts this call, runs the retriever,
+// and sends the result back — Gemini never forwards this to iOS.
+func buildSearchKnowledgeTool() *genai.FunctionDeclaration {
+	return &genai.FunctionDeclaration{
+		Name:        "search_knowledge_base",
+		Description: "Search the BrewBot knowledge base for specific brewing information. Call this when you need precise parameters, ratios, water chemistry, grind sizes, or troubleshooting steps. Always call this before answering technical brewing questions.",
+		Parameters: &genai.Schema{
+			Type: genai.TypeObject,
+			Properties: map[string]*genai.Schema{
+				"query": {
+					Type:        genai.TypeString,
+					Description: "The specific brewing topic to search for. Be specific, e.g. 'V60 brew ratio and water temperature' or 'espresso extraction time and pressure'.",
+				},
+			},
+			Required: []string{"query"},
 		},
 	}
 }

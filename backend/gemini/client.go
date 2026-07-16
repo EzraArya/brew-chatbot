@@ -2,8 +2,12 @@ package gemini
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
+	"strings"
 
+	"brew-chatbot/internal/rag"
 	"google.golang.org/genai"
 )
 
@@ -15,6 +19,8 @@ You help users with all aspects of brewing including beer, coffee, tea, and komb
 Use tools when the response would benefit from structured, interactive display.
 Use plain text for general questions, advice, and explanations.
 
+- search_knowledge_base: ALWAYS call this first before answering any technical brewing question.
+  Use it to look up precise parameters, ratios, water chemistry, grind sizes, or troubleshooting steps.
 - generate_brew_recipe: For coffee manual brew recipes (V60, Chemex, AeroPress, French Press, etc.)
 - generate_beer_recipe: For homebrewing beer recipes (IPA, stout, wheat beer, etc.)
 - generate_tea_recipe: For tea preparation with specific parameters
@@ -23,27 +29,26 @@ Use plain text for general questions, advice, and explanations.
 - generate_brew_timer: ONLY when the user wants to brew RIGHT NOW and needs a real-time countdown.
   This is distinct from a recipe — timers have step-by-step durations for active brewing guidance.
 
-  ## Behaviour
-  Keep answers practical, friendly, and concise.
-  If a question is unrelated to brewing, politely redirect back to brewing topics.
-  When a user asks for a recipe or timer, call the appropriate tool immediately using
-  sensible defaults. Do not ask clarifying questions before calling a tool — generate
-  the recipe first, then offer to adjust it afterwards.`
+## Behaviour
+Keep answers practical, friendly, and concise.
+If a question is unrelated to brewing, politely redirect back to brewing topics.
+When a user asks for a recipe or timer, call the appropriate tool immediately using
+sensible defaults. Do not ask clarifying questions before calling a tool — generate
+the recipe first, then offer to adjust it afterwards.`
 
 // Message represents a single chat message
-// json tags tell Go how to convert this to/from JSON
 type Message struct {
-	Role    string `json:"role"`    // "user" or "model"
+	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// Client wraps the Gemini SDK client
+// Client wraps the Gemini SDK client and knowledge retriever
 type Client struct {
-	ai *genai.Client
+	ai        *genai.Client
+	retriever rag.Retriever
 }
 
-// NewClient creates and returns a new Gemini client
-// This is Go's equivalent of an initializer/constructor
+// NewClient creates a Gemini client wired with the markdown knowledge base
 func NewClient(apiKey string) (*Client, error) {
 	ctx := context.Background()
 
@@ -55,13 +60,25 @@ func NewClient(apiKey string) (*Client, error) {
 		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
 	}
 
-	return &Client{ai: ai}, nil
+	// Wire up RAG: markdown files → full context retriever
+	source := &rag.MarkdownSource{Dir: "knowledge/"}
+	retriever := &rag.FullContextRetriever{Sources: []rag.KnowledgeSource{source}}
+
+	return &Client{ai: ai, retriever: retriever}, nil
 }
 
-// Chat sends a message to Gemini with the full conversation history
-// and returns the assistant's reply
-func (c *Client) Chat(ctx context.Context, history []Message, userMessage string) (string, error) {
-	// Convert our Message slice into Gemini's format
+// ChatStream sends a message to Gemini with conversation history and streams
+// the response back chunk by chunk via the onChunk callback.
+//
+// search_knowledge_base tool calls are handled internally — the backend
+// retrieves the docs and sends them back to Gemini transparently.
+// All other tool calls (brew_recipe, timer, etc.) are forwarded to the caller via onChunk.
+func (c *Client) ChatStream(
+	ctx context.Context,
+	history []Message,
+	userMessage string,
+	onChunk func(chunk string),
+) error {
 	var geminiHistory []*genai.Content
 	for _, msg := range history {
 		geminiHistory = append(geminiHistory, &genai.Content{
@@ -70,23 +87,97 @@ func (c *Client) Chat(ctx context.Context, history []Message, userMessage string
 		})
 	}
 
-	// Create a chat session with history + system prompt
-	config := GetToolConfig()
-
-	chat, err := c.ai.Chats.Create(ctx, "gemini-2.5-flash", config, geminiHistory)
+	chat, err := c.ai.Chats.Create(ctx, "gemini-2.5-flash", GetToolConfig(), geminiHistory)
 	if err != nil {
-		return "", fmt.Errorf("failed to create chat session: %w", err)
+		return fmt.Errorf("failed to create chat session: %w", err)
 	}
 
-	resp, err := chat.SendMessage(ctx, genai.Part{Text: userMessage})
-	if err != nil {
-		return "", fmt.Errorf("failed to send message: %w", err)
+	stream := chat.SendMessageStream(ctx, genai.Part{Text: userMessage})
+
+	// maxRAGRounds prevents infinite loops if Gemini keeps calling search_knowledge_base
+	const maxRAGRounds = 3
+
+	for round := 0; round < maxRAGRounds; round++ {
+		var ragQuery string // set when Gemini calls search_knowledge_base
+
+		for resp, err := range stream {
+			if err != nil {
+				return fmt.Errorf("stream failed: %w", err)
+			}
+
+			if functionCalls := resp.FunctionCalls(); len(functionCalls) > 0 {
+				call := functionCalls[0]
+
+				if call.Name == "search_knowledge_base" {
+					// Record the query and use continue — do NOT break.
+					// Breaking stops the Go iterator early, making a second
+					// for-range on the same stream a no-op. The SDK only records
+					// the function call in chat history after the stream is fully
+					// consumed. Continuing lets it drain naturally.
+					ragQuery, _ = call.Args["query"].(string)
+					slog.Info("rag: knowledge search", "query", ragQuery)
+					continue
+				}
+
+				// All other tools are forwarded to the iOS client
+				jsonBytes, err := json.Marshal(call.Args)
+				if err == nil {
+					slog.Info("gemini executed tool", "tool", call.Name, "args", string(jsonBytes))
+					onChunk(fmt.Sprintf("[%s] %s", call.Name, string(jsonBytes)))
+				}
+
+				return nil
+			}
+
+			// Only forward text chunks when not in RAG drain mode
+			if ragQuery == "" {
+				if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
+					chunkText := resp.Candidates[0].Content.Parts[0].Text
+					if chunkText != "" {
+						slog.Debug("gemini generated text", "length", len(chunkText))
+						onChunk(chunkText)
+					}
+				}
+			}
+		}
+
+		// Stream fully consumed — SDK has recorded the model turn in history.
+		// If no RAG call happened, we're done.
+		if ragQuery == "" {
+			break
+		}
+
+		// Retrieve knowledge and send function response back to Gemini
+		docs, err := c.retriever.Retrieve(ctx, ragQuery)
+		if err != nil {
+			slog.Warn("rag: retrieval failed", "error", err)
+			docs = nil
+		}
+
+		stream = chat.SendMessageStream(ctx, genai.Part{
+			FunctionResponse: &genai.FunctionResponse{
+				Name:     "search_knowledge_base",
+				Response: map[string]any{"knowledge": buildKnowledgeResult(docs)},
+			},
+		})
 	}
 
-	// Extract the text response
-	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("empty response from Gemini")
+	return nil
+}
+
+// buildKnowledgeResult formats retrieved documents into a string for Gemini
+func buildKnowledgeResult(docs []rag.Document) string {
+	if len(docs) == 0 {
+		return "No knowledge found for this query."
 	}
 
-	return resp.Candidates[0].Content.Parts[0].Text, nil
+	var sb strings.Builder
+	for _, doc := range docs {
+		sb.WriteString("## ")
+		sb.WriteString(doc.Title)
+		sb.WriteString("\n\n")
+		sb.WriteString(doc.Content)
+		sb.WriteString("\n\n---\n\n")
+	}
+	return sb.String()
 }
