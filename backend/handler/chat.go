@@ -1,106 +1,122 @@
 package handler
 
 import (
-	"brew-chatbot/gemini"
-	"brew-chatbot/internal/db"
-	"brew-chatbot/internal/httputil"
-	"brew-chatbot/internal/middleware"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
+	"brew-chatbot/gemini"
+	"brew-chatbot/internal/db"
+	"brew-chatbot/internal/httputil"
+	"brew-chatbot/internal/middleware"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// ChatHandler holds the dependencies our handler needs
-type ChatHandler struct {
-	Gemini  *gemini.Client
+type ChatStreamHandler struct {
+	Client *gemini.Client
 	Queries *db.Queries
 }
 
-// chatRequest is what we expect iOS to send us
+// chatRequest is the request body for the streaming chat endpoint
 type chatRequest struct {
 	UserMessage string `json:"userMessage"`
 }
 
-// chatResponse is what we send back to iOS
-type chatResponse struct {
-	Reply string `json:"reply"`
-}
-
-// Handle is the HTTP handler for POST /sessions/{id}/chat
-func (h *ChatHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	// 1. Only allow POST requests
+func (h *ChatStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httputil.WriteError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// 2. Decode the JSON body
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		httputil.WriteError(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+
 	var req chatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.WriteError(w, "invalid request body", http.StatusBadRequest)
+		fmt.Fprintf(w, "data: [ERROR] BAD_REQUEST\n\n")
 		return
 	}
 
-	// 3. Basic validation
 	if strings.TrimSpace(req.UserMessage) == "" {
 		httputil.WriteError(w, "userMessage cannot be empty", http.StatusBadRequest)
+		fmt.Fprintf(w, "data: [ERROR] VALIDATION_FAILED\n\n")
 		return
 	}
 
-	// 4. Get device ID from context (injected by DeviceID middleware)
-	deviceID, ok := middleware.DeviceIDFromContext(r.Context())
+	var deviceID pgtype.UUID
+	deviceID, ok = middleware.DeviceIDFromContext(r.Context())
 	if !ok {
-		httputil.WriteError(w, "unauthorized", http.StatusUnauthorized)
-		return
+	    httputil.WriteError(w, "unauthorized", http.StatusUnauthorized)
+	    return
 	}
-
-	// 5. Parse session ID from URL path
+	
 	var sessionID pgtype.UUID
 	if err := sessionID.Scan(r.PathValue("id")); err != nil {
-		httputil.WriteError(w, "invalid session ID", http.StatusBadRequest)
-		return
+	    httputil.WriteError(w, "invalid session ID", http.StatusBadRequest)
+	    return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
 
-	// 6. Verify session belongs to this device
-	if _, err := h.Queries.GetSession(ctx, db.GetSessionParams{
-		ID:       sessionID,
-		DeviceID: deviceID,
-	}); err != nil {
-		httputil.WriteError(w, "session not found", http.StatusNotFound)
-		return
+	_, err := h.Queries.GetSession(ctx, db.GetSessionParams{
+	    ID:       sessionID,
+	    DeviceID: deviceID,
+	})
+	
+	if err != nil {
+	    fmt.Fprintf(w, "data: [ERROR] SESSION_NOT_FOUND\n\n")
+	    flusher.Flush()
+	    return
 	}
 
-	// 7. Fetch conversation history from DB
-	dbMessages, err := h.Queries.GetMessagesBySession(ctx, sessionID)
+	dbMessage, err := h.Queries.GetMessagesBySession(ctx, sessionID)
 	if err != nil {
-		httputil.WriteError(w, "failed to load history", http.StatusInternalServerError)
+		fmt.Fprintf(w, "data: [ERROR] DB_FAILED\n\n")
+		flusher.Flush()
 		return
 	}
 
 	var history []gemini.Message
-	for _, m := range dbMessages {
-		history = append(history, gemini.Message{Role: m.Role, Content: m.Content})
+	for _, m := range dbMessage {
+		history = append(history, gemini.Message{
+			Role: m.Role,
+			Content: m.Content,
+		})
 	}
+	
+	var fullReply strings.Builder
 
-	// 8. Call Gemini
-	reply, err := h.Gemini.Chat(ctx, history, req.UserMessage)
+	err = h.Client.ChatStream(ctx, history, req.UserMessage, func(chunk string) {
+	    fullReply.WriteString(chunk)  // accumulate
+	    cleanChunk := strings.ReplaceAll(chunk, "\n", "\\n")
+	    fmt.Fprintf(w, "data: %s\n\n", cleanChunk)
+	    flusher.Flush()
+	})
+
 	if err != nil {
-		httputil.WriteError(w, "failed to get response from AI", http.StatusInternalServerError)
-		slog.Error("Gemini chat failed", "error", err)
+		fmt.Fprintf(w, "data: [ERROR] AI_SERVICE_FAILED\n\n")
+		slog.Error("gemini stream failed", "error", err) 
+		flusher.Flush()
 		return
 	}
 
-	
+	fmt.Fprintf(w, "data: [DONE]\n\n")
 
-	// Save user message
 	if _, err := h.Queries.CreateMessage(ctx, db.CreateMessageParams{
 	    SessionID: sessionID,
 	    Role:      "user",
@@ -109,14 +125,13 @@ func (h *ChatHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	    slog.Error("failed to save user message", "error", err)
 	}
 	
-	// Save model reply
 	if _, err := h.Queries.CreateMessage(ctx, db.CreateMessageParams{
 	    SessionID: sessionID,
 	    Role:      "model",
-	    Content:   reply,
+	    Content:   fullReply.String(),
 	}); err != nil {
 	    slog.Error("failed to save model message", "error", err)
 	}
 	
-	httputil.WriteJSON(w, chatResponse{Reply: reply}, http.StatusOK)
+	flusher.Flush()
 }
