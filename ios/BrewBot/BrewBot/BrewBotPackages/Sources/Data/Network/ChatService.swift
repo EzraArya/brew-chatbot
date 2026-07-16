@@ -6,16 +6,17 @@
 //
 
 import Foundation 
+import Domain
 
 @MainActor
-final class ChatService {
-    let baseURL: String 
+public final class ChatService {
+    public let baseURL: String 
 
-    init(baseURL: String = "http://localhost:8080") {
+    public init(baseURL: String = "http://localhost:8080") {
         self.baseURL = baseURL
     }
 
-    func sendMessage(history: [Message], userMessage: String) async throws -> Message {
+    public func sendMessage(history: [Message], userMessage: String) async throws -> Message {
         guard let url = URL(string: "\(baseURL)/chat") else {
             throw ChatError.serverError
         }

@@ -7,18 +7,18 @@
 
 import Foundation
 
-struct Conversation: Identifiable, Equatable, Sendable, Codable, Hashable {
-    let id: UUID
-    var title: String
-    var messages: [Message]
-    let createdAt: Date
-    var updatedAt: Date
+public struct Conversation: Identifiable, Equatable, Sendable, Codable, Hashable {
+    public let id: UUID
+    public var title: String
+    public var messages: [Message]
+    public let createdAt: Date
+    public var updatedAt: Date
 
-    init(title: String = "New Conversation", messages: [Message] = []) {
-        self.id = UUID()
+    public init(id: UUID = UUID(), title: String = "New Conversation", messages: [Message] = [], createdAt: Date = Date(), updatedAt: Date = Date()) {
+        self.id = id
         self.title = title
         self.messages = messages
-        self.createdAt = Date()
-        self.updatedAt = Date()
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
     }
 }

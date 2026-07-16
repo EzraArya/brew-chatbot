@@ -7,25 +7,25 @@
 
 import Foundation
 
-struct Message: Identifiable, Equatable, Sendable, Codable, Hashable {
-    let id: UUID 
-    let role: Role 
-    let content: String
-    let timestamp: Date
-    var toolType: ToolType?
-    var toolPayload: String?
+public struct Message: Identifiable, Equatable, Sendable, Codable, Hashable {
+    public let id: UUID 
+    public let role: Role 
+    public let content: String
+    public let timestamp: Date
+    public var toolType: ToolType?
+    public var toolPayload: String?
 
-    init(role: Role, content: String, toolType: ToolType? = nil, toolPayload: String? = nil) {
-        self.id = UUID()
+    public init(id: UUID = UUID(), role: Role, content: String, timestamp: Date = Date(), toolType: ToolType? = nil, toolPayload: String? = nil) {
+        self.id = id
         self.role = role
         self.content = content
-        self.timestamp = Date()
+        self.timestamp = timestamp
         self.toolType = toolType
         self.toolPayload = toolPayload
     }
 }
 
-extension Message {
+public extension Message {
     enum Role: String, Codable, Sendable {
         case user = "user"
         case model = "model"

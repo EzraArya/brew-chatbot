@@ -7,13 +7,13 @@
 
 import Foundation
 
-struct ManualBrewRecipe: Codable, Equatable {
-    let method: String
-    let coffeeGrams: Double
-    let waterGrams: Double
-    let grindSize: String
-    let temperature: String
-    let steps: [String]
+public struct ManualBrewRecipe: Codable, Equatable {
+    public let method: String
+    public let coffeeGrams: Double
+    public let waterGrams: Double
+    public let grindSize: String
+    public let temperature: String
+    public let steps: [String]
 
     enum CodingKeys: String, CodingKey {
         case method

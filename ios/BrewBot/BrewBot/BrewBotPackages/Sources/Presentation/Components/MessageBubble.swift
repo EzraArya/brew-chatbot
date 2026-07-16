@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Domain
 
 struct MessageBubble: View {
     let message: Message

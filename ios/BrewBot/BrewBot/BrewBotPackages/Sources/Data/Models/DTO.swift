@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Domain
 
 struct MessageDTO: Codable, Sendable {
     let role: String
@@ -30,9 +31,9 @@ extension MessageDTO {
 
 extension Message {
     init(from dto: MessageDTO) {
-        self.id = UUID()
-        self.role = dto.role == "user" ? .user : .model
-        self.content = dto.content
-        self.timestamp = Date()
+        self.init(
+            role: dto.role == "user" ? .user : .model,
+            content: dto.content
+        )
     }
 }

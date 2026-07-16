@@ -6,15 +6,19 @@
 //
 
 import SwiftUI
+import Domain
+import Data
 
-struct ConversationListView: View {
+public struct ConversationListView: View {
 
     @State private var viewModel = ConversationListViewModel(
         repository: UserDefaultsChatRepository()
     )
     @State private var newConversation: Conversation? = nil
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         NavigationStack {
             Group {
                 if viewModel.conversations.isEmpty {

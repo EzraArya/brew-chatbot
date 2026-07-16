@@ -6,6 +6,8 @@
 //
 
 import Foundation
+import Domain
+import Data
 
 @Observable
 @MainActor
@@ -84,7 +86,7 @@ final class ChatViewModel {
         errorMessage = nil
 
         do {
-            let stream = try service.streamMessage(
+            let stream = service.streamMessage(
                 history: conversation.messages.dropLast().map { $0 }, 
                 userMessage: trimmed
             )

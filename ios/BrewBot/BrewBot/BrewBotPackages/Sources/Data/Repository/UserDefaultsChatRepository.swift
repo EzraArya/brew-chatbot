@@ -6,23 +6,24 @@
 //
 
 import Foundation
+import Domain
 
-final class UserDefaultsChatRepository: ChatRepositoryProtocol {
+public final class UserDefaultsChatRepository: ChatRepositoryProtocol {
     private let storageKey = "brewbot.conversations"
     private let defaults: UserDefaults
 
-    init(defaults: UserDefaults = .standard) {
+    public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
     }
 
-    func loadConversations() -> [Conversation] {
+    public func loadConversations() -> [Conversation] {
         guard let data = defaults.data(forKey: storageKey), let conversations = try? JSONDecoder().decode([Conversation].self, from: data) else {
             return []
         }
         return conversations.sorted { $0.updatedAt > $1.updatedAt }
     }
 
-    func saveConversation(_ conversation: Conversation) {
+    public func saveConversation(_ conversation: Conversation) {
         var all = loadConversations()
 
         if let index = all.firstIndex(where: { $0.id == conversation.id }) {
@@ -36,7 +37,7 @@ final class UserDefaultsChatRepository: ChatRepositoryProtocol {
         }
     }
 
-    func deleteConversation(id: UUID) {
+    public func deleteConversation(id: UUID) {
         var all = loadConversations()
         all.removeAll { $0.id == id }
 

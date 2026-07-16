@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import Domain
+import Data
 
 struct ChatView: View {
     private let conversation: Conversation

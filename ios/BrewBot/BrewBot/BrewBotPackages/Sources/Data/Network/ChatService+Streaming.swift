@@ -6,8 +6,9 @@
 //
 
 import Foundation
+import Domain
 
-extension ChatService {
+public extension ChatService {
     func streamMessage(
         history: [Message],
         userMessage: String

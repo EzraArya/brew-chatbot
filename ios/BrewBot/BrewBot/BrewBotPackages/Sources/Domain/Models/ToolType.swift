@@ -7,11 +7,11 @@
 
 import Foundation
 
-enum ToolType: String, Codable, Equatable, Sendable, Hashable {
+public enum ToolType: String, Codable, Equatable, Sendable, Hashable {
     case generateBrewRecipe = "generate_brew_recipe"
     case unknown
 
-    init(from decoder: any Decoder) throws {
+    public init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
         let rawValue = try container.decode(String.self)
         self = ToolType(rawValue: rawValue) ?? .unknown

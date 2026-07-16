@@ -5,6 +5,9 @@ import PackageDescription
 
 let package = Package(
     name: "BrewBotPackages",
+    platforms: [
+            .iOS(.v17)
+    ],
     products: [
         .library(name: "Domain", targets: ["Domain"]),
         .library(name: "Core", targets: ["Core"]),

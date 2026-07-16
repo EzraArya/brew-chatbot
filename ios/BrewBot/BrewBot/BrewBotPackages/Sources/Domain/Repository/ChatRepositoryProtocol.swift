@@ -7,7 +7,7 @@
 
 import Foundation
 
-protocol ChatRepositoryProtocol {
+public protocol ChatRepositoryProtocol {
     func loadConversations() -> [Conversation]
     func saveConversation(_ conversation: Conversation)
     func deleteConversation(id: UUID)
