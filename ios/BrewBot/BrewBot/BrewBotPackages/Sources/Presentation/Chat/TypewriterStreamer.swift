@@ -10,31 +10,13 @@ import Domain
 import Data
 
 public enum TypewriterStreamer {
-    
-    private actor StreamState {
-        var charBuffer: [Character] = []
-        var isNetworkFinished = false
-        var networkError: Error?
-        var interceptedTool: ToolType? = nil
-        var interceptedPayload: String? = nil
-        
-        func append(_ text: String) { charBuffer.append(contentsOf: text) }
-        func setTool(_ type: ToolType, payload: String) {
-            interceptedTool = type
-            interceptedPayload = payload
-        }
-        func setFinished(error: Error? = nil) {
-            isNetworkFinished = true
-            networkError = error
-        }
-        
-        func getStatus(currentIndex: Int) -> (unreadCount: Int, isFinished: Bool, error: Error?, tool: ToolType?, payload: String?) {
-            return (charBuffer.count - currentIndex, isNetworkFinished, networkError, interceptedTool, interceptedPayload)
-        }
-        
-        func getChar(at index: Int) -> Character {
-            return charBuffer[index]
-        }
+
+    /// Everything the consumer needs about a produced chunk, including a
+    /// cumulative send-count so pacing can react to true backlog depth —
+    /// without either side owning shared mutable state to compute it.
+    private enum Signal: Sendable {
+        case chunk(characters: [Character], totalSentSoFar: Int)
+        case toolIntercepted(ToolType, String?)
     }
 
     /// Drains a StreamEvent network stream and paces the text output for a UI typewriter effect.
@@ -46,60 +28,51 @@ public enum TypewriterStreamer {
         stream: AsyncThrowingStream<StreamEvent, Error>,
         onTextAppended: @escaping @MainActor @Sendable (Character) -> Void
     ) async throws -> (ToolType?, String?) {
-        
-        let state = StreamState()
-        
-        // 1. The Producer: Drains the network as fast as possible
+
+        let (signals, continuation) = AsyncThrowingStream<Signal, Error>.makeStream()
+
+        // Producer: owns `totalSent` exclusively. Single writer -> no
+        // synchronization needed, no actor required for this counter.
         let producer = Task {
+            var totalSent = 0
             do {
                 for try await event in stream {
                     switch event {
                     case .textChunk(let text):
-                        await state.append(text)
+                        totalSent += text.count
+                        continuation.yield(.chunk(characters: Array(text), totalSentSoFar: totalSent))
                     case .toolCall(let type, let payload):
-                        await state.setTool(type, payload: payload)
+                        continuation.yield(.toolIntercepted(type, payload))
+                        continuation.finish()
                         return // Stop draining, we found a tool!
                     }
                 }
+                continuation.finish()
             } catch {
-                await state.setFinished(error: error)
-                return
-            }
-            await state.setFinished()
-        }
-        
-        // 2. The Consumer: Paces the UI updates
-        var currentIndex = 0
-        while true {
-            let status = await state.getStatus(currentIndex: currentIndex)
-            
-            if let error = status.error {
-                producer.cancel()
-                throw error
-            }
-            
-            if status.tool != nil {
-                break // Abort typing if a tool arrived
-            }
-            
-            if status.unreadCount > 0 {
-                let char = await state.getChar(at: currentIndex)
-                currentIndex += 1
-                
-                await onTextAppended(char)
-                
-                let delay: UInt64 = status.unreadCount > 30 ? 8_000_000 : 15_000_000
-                try? await Task.sleep(nanoseconds: delay)
-            } else if status.isFinished {
-                break // Finished and nothing left to read
-            } else {
-                // Wait for more data
-                try? await Task.sleep(nanoseconds: 10_000_000)
+                continuation.finish(throwing: error)
             }
         }
-        
-        producer.cancel()
-        let finalStatus = await state.getStatus(currentIndex: 0)
-        return (finalStatus.tool, finalStatus.payload)
+        defer { producer.cancel() }
+
+        // Consumer: owns `totalConsumed` exclusively. Single writer -> safe
+        // by construction. `for try await` suspends properly between yields;
+        // no manual polling, no shared buffer, no actor hops per character.
+        var totalConsumed = 0
+        for try await signal in signals {
+            switch signal {
+            case .chunk(let characters, let totalSentSoFar):
+                for char in characters {
+                    await onTextAppended(char)
+                    totalConsumed += 1
+                    let unreadCount = totalSentSoFar - totalConsumed
+                    let delay: UInt64 = unreadCount > 30 ? 8_000_000 : 15_000_000
+                    try? await Task.sleep(nanoseconds: delay)
+                }
+            case .toolIntercepted(let tool, let payload):
+                return (tool, payload) // Abort typing if a tool arrived
+            }
+        }
+
+        return (nil, nil)
     }
 }
